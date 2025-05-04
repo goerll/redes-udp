@@ -48,6 +48,7 @@ Rede com perdas:
 ![image](https://github.com/user-attachments/assets/efe93674-4a35-4e3f-ae8a-3e7e11a1a83e)
 
 Rede com alta latência:
+
 ![image](https://github.com/user-attachments/assets/fd959794-8e05-431a-bb45-3290dc7118f1)
 
 ![image](https://github.com/user-attachments/assets/13fcf4c7-9648-4926-92a5-b5fb41048053)
