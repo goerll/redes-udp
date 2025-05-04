@@ -11,10 +11,6 @@ TAMANHO_FRAGMENTO = 1000
 TIMEOUT = 1.0
 MAX_TENTATIVAS = 10
 
-# Tamanho de cada fragmento a ser enviado
-# Timeout para retransmissão em segundos
-# Número máximo de tentativas de retransmissão
-
 # Criar socket UDP
 try:
     cliente = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -22,13 +18,61 @@ except socket.error as e:
     print(f"Erro ao criar socket: {e}")
     sys.exit(1)
 
-
 # Função para enviar arquivo
 def enviar_arquivo(caminho_arquivo):
-    # IMPLEMENTAR: Lógica para fragmentar e enviar arquivo
-    # com confirmação de recebimento (ACKS)
-    pass
+    try:
+        with open(caminho_arquivo, 'rb') as arquivo:
+            dados = arquivo.read()
 
+        total_fragmentos = (len(dados) + TAMANHO_FRAGMENTO - 1) // TAMANHO_FRAGMENTO
+        num_seq = 0
+
+        print(f"Arquivo com {len(dados)} bytes será enviado em {total_fragmentos} fragmentos.")
+
+        cliente.settimeout(TIMEOUT)
+
+        while num_seq < total_fragmentos:
+            # Define os limites do fragmento
+            inicio = num_seq * TAMANHO_FRAGMENTO
+            fim = inicio + TAMANHO_FRAGMENTO
+            fragmento = dados[inicio:fim]
+
+            # Cria pacote: 2 bytes para o número de sequência + fragmento
+            pacote = num_seq.to_bytes(2, byteorder='big') + fragmento
+
+            tentativas = 0
+            enviado = False
+
+            while not enviado and tentativas < MAX_TENTATIVAS:
+                try:
+                    cliente.sendto(pacote, (SERVIDOR_HOST, SERVIDOR_PORT))
+                    resposta, _ = cliente.recvfrom(BUFFER_SIZE)
+                    resposta = resposta.decode('utf-8')
+
+                    if resposta.startswith('ACK:'):
+                        ack_num = int(resposta.split(':')[1])
+                        if ack_num == num_seq:
+                            print(f"Fragmento {num_seq} enviado e confirmado.")
+                            enviado = True
+                            num_seq += 1
+                        else:
+                            print(f"ACK inesperado: {ack_num}. Esperado: {num_seq}. Reenviando...")
+                    else:
+                        print(f"Resposta inesperada: {resposta}. Reenviando fragmento {num_seq}...")
+                except socket.timeout:
+                    tentativas += 1
+                    print(f"Timeout esperando ACK do fragmento {num_seq}. Tentativa {tentativas}/{MAX_TENTATIVAS}.")
+
+            if not enviado:
+                print(f"Falha ao enviar fragmento {num_seq} após {MAX_TENTATIVAS} tentativas.")
+                return
+
+        # Após enviar todos os fragmentos, enviar sinal de fim
+        cliente.sendto(b'FIM', (SERVIDOR_HOST, SERVIDOR_PORT))
+        print("Arquivo enviado com sucesso!")
+
+    except Exception as e:
+        print(f"Erro ao enviar arquivo: {e}")
 
 # Função principal
 def main():
@@ -46,7 +90,7 @@ def main():
     try:
         # Enviar solicitação inicial ao servidor
         nome_arquivo = os.path.basename(caminho_arquivo)
-        solicitacao = f"ENVIAR: {nome_arquivo}"
+        solicitacao = f"ENVIAR:{nome_arquivo}"
         print(f"Solicitando envio de '{nome_arquivo}' para o servidor...")
         cliente.sendto(solicitacao.encode('utf-8'), (SERVIDOR_HOST, SERVIDOR_PORT))
 
@@ -62,12 +106,12 @@ def main():
         except socket.timeout:
             print("Timeout: O servidor não respondeu à solicitação inicial.")
             sys.exit(1)
+
     except KeyboardInterrupt:
         print("\nCliente encerrado pelo usuário.")
     finally:
         cliente.close()
         print("Socket do cliente fechado.")
-
 
 if __name__ == "__main__":
     main()

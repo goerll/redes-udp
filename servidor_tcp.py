@@ -1,6 +1,7 @@
 import socket
 import os
 import threading
+import time
 import sys
 
 # Configurações do servidor
@@ -11,7 +12,6 @@ DIRETORIO_ARQUIVOS = './arquivos_tcp_recebidos/'
 
 # Criar diretório para salvar arquivos se não existir
 os.makedirs(DIRETORIO_ARQUIVOS, exist_ok=True)
-
 
 # Função para lidar com a conexão de um cliente
 def handle_client(conn, addr):
@@ -30,31 +30,43 @@ def handle_client(conn, addr):
 
         # Receber e salvar o arquivo
         with open(caminho_arquivo, 'wb') as f:
-            bytes_recebidos = 0
+            bytes_recebidos = 0  # Total de dados recebidos (inclui "FIM")
+            bytes_uteis = 0      # Dados efetivamente escritos
             inicio = time.time()
+
             while True:
                 dados = conn.recv(BUFFER_SIZE)
-                if not dados or dados == b'FIM':
+                if not dados:
                     break
-                f.write(dados)
                 bytes_recebidos += len(dados)
+
+                if dados == b'FIM':
+                    # Se for mensagem de fim, não escreve no arquivo
+                    break
+                else:
+                    f.write(dados)
+                    bytes_uteis += len(dados)
+
             fim = time.time()
 
         # Calcular estatísticas
         tempo_total = fim - inicio
-        taxa_transferencia = bytes_recebidos / tempo_total / 1024  # KB/s
+        taxa_transferencia = bytes_uteis / tempo_total / 1024  # KB/s
+
+        # Calcular overhead (se bytes úteis > 0)
+        overhead = ((bytes_recebidos - bytes_uteis) / bytes_uteis) * 100 if bytes_uteis > 0 else 0
 
         print(f"Arquivo {nome_arquivo} recebido com sucesso.")
-        print(f"Tamanho: {bytes_recebidos} bytes")
+        print(f"Tamanho: {bytes_uteis} bytes")
         print(f"Tempo: {tempo_total:.2f} segundos")
         print(f"Taxa de transferência: {taxa_transferencia:.2f} KB/s")
+        print(f"Overhead: {overhead:.2f}%")
 
     except Exception as e:
         print(f"Erro no processamento do cliente {addr}: {e}")
     finally:
         conn.close()
         print(f"Conexão fechada: {addr}")
-
 
 # Criar socket TCP
 try:
