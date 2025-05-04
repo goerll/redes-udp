@@ -32,6 +32,8 @@ Visão do Wireshark:
 
 ![image](https://github.com/user-attachments/assets/a707498b-8831-4194-a96a-3e591bc8ad07)
 
+A análise do Wireshark mostra o padrão de envio dos fragmentos do arquivo. Cada fragmento de dados (payload maior, ex: 1046 bytes) é seguido por um pacote de confirmação (ACK) enviado pelo servidor (payload menor, ex: 49-53 bytes).
+
 Os ACKs são os pacotes com tamanho entre 49 e 53, é possível observar isso abrindo o pacote e vendo que o conteúdo dele é "ACK: {numero_do_fragmento}".
 
 ![image](https://github.com/user-attachments/assets/9246bb50-008b-4284-812e-3ac5a77161ea)
@@ -54,3 +56,23 @@ Rede com alta latência:
 ![image](https://github.com/user-attachments/assets/13fcf4c7-9648-4926-92a5-b5fb41048053)
 
 Como ambos foram rodados na mesma máquina, podemos ver que os cenários de rede não impactaram a transferência.
+
+Mesmo em rede local, o TCP apresentou uma taxa de transferência significativamente maior (ex: ~173 MB/s ) em comparação com a implementação UDP (ex: ~3.8 MB/s ). Isso pode ser atribuído à natureza orientada à conexão e ao controle de fluxo otimizado do TCP, enquanto a implementação UDP, com envio fragmento por fragmento e espera por ACK individual, introduz maior latência entre pacotes.
+
+O overhead calculado para a transferência UDP foi de 0.20%, enquanto para o TCP foi de 0.00%. O overhead no UDP se deve à adição de informações de controle (como número de sequência) em cada fragmento para implementar a confiabilidade. O TCP, embora tenha cabeçalhos maiores, gerencia a confiabilidade e o fluxo de forma mais eficiente em nível de sistema operacional, resultando em menor overhead percentual percebido na camada de aplicação para transferências de dados em massa.
+
+## Perguntas de Reflexão
+### Quais foram os principais desafios ao implementar aplicações com UDP?
+O maior desafio foi a falta de confiabilidade nativa do UDP. Diferente do TCP, é necessário um cuidado manual com a entrega ordenada e completa dos dados, levando em conta possíveis perdas ou desordem dos pacotes.
+
+### Como você contornou a falta de garantias de entrega do UDP?
+- Números de sequência: Para ordenar os fragmentos do arquivo.
+- Confirmações (ACKs): O servidor confirma o recebimento de cada fragmento.
+- Timeout e Retransmissão: O cliente reenviará um fragmento se não receber o ACK dentro de um tempo limite.
+- Tratamento de ordem: O servidor verifica a sequência e solicita reenvio se necessário.
+
+### Em quais situações você recomendaria o uso de UDP ao invés de TCP?
+O UDP é mais adequado quando a velocidade e a baixa latência são prioritárias acima até mesmo de falhas eventuais na transmissão, e a perda ocasional de pacotes é aceitável ou pode ser tratada pela aplicação. Bons exemplos são streaming de vídeo/áudio ao vivo, jogos online e chamadas VoIP, onde atrasos são mais prejudiciais que pequenas perdas.
+
+### Como o comportamento do UDP poderia impactar aplicações de tempo real?
+Aplicações de tempo real são sensíveis a atrasos e perdas. Com UDP a perda de pacotes pode causar glitches visuais ou sonoros no caso de transmissões de mídia ou perda de informação (por exemplo em jogos). A variação no atraso prejudica a reprodução contínua de mídia e a entrega fora de ordem dos pacotes torna necessário um buffer onde os pacotes podem ser armazenados enquanto esperam por pacotes anteriores que demoraram mais pra chegar ou precisram de retransmissão, aumentando a latência e provavelmente prejudicando a experiência final do usuário.
